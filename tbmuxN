@@ -1,0 +1,32 @@
+module tbmuxN();
+  parameter WIDTH=8;
+  parameter DATA_WIDTH = 4;
+  parameter NUM_SEL = 2;
+  parameter SIZE=$clog2(WIDTH);
+
+  logic [WIDTH-1:0] req_in;
+  logic [WIDTH-1:0] [DATA_WIDTH-1:0] data_in;
+  logic [NUM_SEL-1:0][DATA_WIDTH-1:0] data_out;
+  logic [NUM_SEL-1:0][WIDTH-1:0] req_out;
+  logic [NUM_SEL-1:0]            req_sum;    
+  logic [NUM_SEL-1:0][SIZE-1:0]  enc_req_out;
+  logic clk;
+
+  muxN muxN8by2(.*);
+  initial begin
+    clk = 0;
+    $dumpfile("dump.vcd");
+    $dumpvars(1);
+
+    repeat (10) begin 
+      @ (negedge clk); 
+      req_in = $random;
+      for(int j=0;j<WIDTH;j++)
+        data_in[j] = $random;
+    end 
+    $finish;
+  end
+
+  always #1 clk = ~clk;
+
+endmodule

@@ -1,0 +1,73 @@
+//Mux module that takes in N requests and selects NUM_SELS muxed outputs,in any order.
+//Chose NUM_SEL out of WIDTH number of requestors, without priority.
+//Also creates one hot version of chosen requests and encoded version of chosen requests.
+//A full binary tree is created, if you dont need complete binary tree worth of inputs, pad the extra's to 0.
+
+module muxN #(parameter WIDTH      = 8,              //Number of inputs.
+	            parameter SIZE       = $clogs2(WIDTH), //Log2 Number of inputs
+              parameter DATA_WIDTH = 4,              //Width of data  
+              parameter NUM_SEL    = 3)              //Number of muxed outputs   (	
+ 
+  (input  [WIDTH-1:0]                   req_in,
+   input  [WIDTH-1:0]  [DATA_WIDTH-1:0] data_in,
+
+   output logic [NUM_SEL-1:0]                 req_sum,
+   output logic [NUM_SEL-1:0][DATA_WIDTH-1:0] data_out,
+   output logic [NUM_SEL-1:0][WIDTH-1:0]      req_out,
+   output logic [NUM_SEL-1:0][SIZE-1:0]      enc_req_out);
+   
+   logic [SIZE:0][WIDTH-1:0][NUM_SEL-1:0][DATA_WIDTH-1:0] data_mux;
+   logic [SIZE:0][WIDTH-1:0][NUM_SEL-1:0][WIDTH-1:0] 	  req_mux;
+   logic [SIZE:0][WIDTH-1:0][NUM_SEL-1:0][SIZE-1:0] 	  enc_req_mux;
+   logic [SIZE:0][WIDTH-1:0][NUM_SEL-1:0] 		  accumulate;
+   
+   
+   assign data_out   [NUM_SEL-1:0] = data_mux   [0][0][NUM_SEL-1:0];
+   assign req_out    [NUM_SEL-1:0] = req_mux    [0][0][NUM_SEL-1:0];
+   assign req_sum    [NUM_SEL-1:0] = accumulate [0][0];  
+   assign enc_req_out[NUM_SEL-1:0] = enc_req_mux[0][0][NUM_SEL-1:0];
+   
+   integer max_bkt_at_level,NODE,LVL;
+   //Initialize leaf's of tree to data_in
+   always_comb begin
+      data_mux    = 'x;
+      req_mux     = 'x; 
+      accumulate  = '0;
+      enc_req_mux = '0;
+      
+      
+      for(int i=0;i<WIDTH;i++) begin
+        data_mux   [SIZE][i][0]            = data_in[i];
+        req_mux    [SIZE][i][0][WIDTH-1:0] = req_in[i];
+        accumulate [SIZE][i][0]            = req_in[i];
+	
+      end
+ 
+      for(LVL=SIZE-1; LVL>=0; LVL--) begin
+        for(NODE=0; NODE < 1 << LVL; NODE++) begin
+	  //By default, pull up node values from the LOWER LEFT level up the tree.
+          accumulate [LVL][NODE] = accumulate [LVL+1][2*NODE+1];
+          req_mux    [LVL][NODE] = req_mux    [LVL+1][2*NODE+1] << (1 << SIZE-LVL-1);
+          data_mux   [LVL][NODE] = data_mux   [LVL+1][2*NODE+1];
+	  enc_req_mux[LVL][NODE] = enc_req_mux[LVL+1][2*NODE+1] | 1<<(SIZE-1-LVL);
+	   
+          //Max that can be collected at each level,example the leaves can't collect more than 2.
+          max_bkt_at_level = ((1 << SIZE-LVL) >  NUM_SEL) ? NUM_SEL : (1 << (SIZE-LVL));
+	    
+          //If default assignment has slots remaining, fill those up with the slots from the lower node (right side of the tree)
+          for(int bkt_lft=0; bkt_lft < max_bkt_at_level; bkt_lft++) begin:BKT_LFT
+            for(int bkt_rgt=0; bkt_rgt < max_bkt_at_level; bkt_rgt++) begin:BKT_RGT
+              if(~accumulate[LVL][NODE][bkt_lft] & accumulate[LVL+1][2*NODE+0][bkt_rgt]) begin
+                accumulate [LVL][NODE][bkt_lft] = accumulate [LVL+1][2*NODE+0][bkt_rgt];  //assign slot to 1.
+                req_mux    [LVL][NODE][bkt_lft] = req_mux    [LVL+1][2*NODE+0][bkt_rgt];
+                data_mux   [LVL][NODE][bkt_lft] = data_mux   [LVL+1][2*NODE+0][bkt_rgt];
+                enc_req_mux[LVL][NODE][bkt_lft] = enc_req_mux[LVL+1][2*NODE+0][bkt_rgt];
+		  
+                accumulate [LVL+1][2*NODE+0][bkt_rgt] = 1'b0; //to clear participation since already accounted for.
+              end
+            end
+          end			
+        end		
+      end
+   end
+endmodule

@@ -4,7 +4,7 @@
 //A full binary tree is created, if you dont need complete binary tree worth of inputs, pad the extra's to 0.
 
 module muxN #(parameter WIDTH      = 8,              //Number of inputs.
-	            parameter SIZE       = $clogs2(WIDTH), //Log2 Number of inputs
+	            parameter SIZE       = $clog2(WIDTH), //Log2 Number of inputs
               parameter DATA_WIDTH = 4,              //Width of data  
               parameter NUM_SEL    = 3)              //Number of muxed outputs   (	
  
